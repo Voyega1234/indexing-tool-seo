@@ -128,8 +128,9 @@ issue_type (headline), severity, recommendation, warnings[], nudge_eligible}`.
 ## Deploying (Vercel)
 
 `app.py` exports `app = FastAPI()` at the repo root, which is a supported Vercel entrypoint —
-no restructuring needed. `vercel.json` sets `maxDuration: 300` (the Hobby-plan ceiling; raise it
-on Pro/Enterprise for large-site crawls — see [Vercel's duration docs](https://vercel.com/docs/functions/configuring-functions/duration)).
+no restructuring needed. `vercel.json` sets `maxDuration: 800` for large-site crawls — this
+requires a **Pro or Enterprise** plan (Hobby's ceiling is 300s); see
+[Vercel's duration docs](https://vercel.com/docs/functions/configuring-functions/duration).
 
 Required **Environment Variables** in the Vercel project (Settings → Environment Variables —
 these are *not* read from a committed `.env`, which stays local/gitignored):
