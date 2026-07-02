@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dotenv import load_dotenv
@@ -174,6 +174,34 @@ def init_db() -> None:
                 requested_at TEXT NOT NULL,
                 ok           INTEGER,
                 response     TEXT
+            )
+            """
+        )
+        # background-job state (crawl/check/refresh/nudge) — was an in-memory dict;
+        # moved to Postgres so progress polling works across serverless instances.
+        conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA}.jobs (
+                id            TEXT PRIMARY KEY,
+                kind          TEXT NOT NULL,
+                client_id     INTEGER,
+                status        TEXT NOT NULL DEFAULT 'running',
+                progress_json TEXT,
+                result_json   TEXT,
+                error         TEXT,
+                created_at    TEXT NOT NULL,
+                updated_at    TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(f"CREATE INDEX IF NOT EXISTS idx_jobs_active ON {SCHEMA}.jobs(kind, client_id, status)")
+        # one-time OAuth CSRF nonces — was an in-memory dict; same cross-instance problem
+        # as jobs (the /oauth/start and /oauth/callback requests can hit different instances).
+        conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {SCHEMA}.oauth_states (
+                state      TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -461,6 +489,93 @@ def log_request(client_id: int | None, url: str, method: str, ok: bool, response
             f"VALUES (%s, %s, %s, %s, %s, %s)",
             (client_id, url, method, _now(), 1 if ok else 0, response[:2000]),
         )
+
+
+# --------------------------------------------------------------------------- #
+# jobs (crawl/check/refresh/nudge progress — polled from the UI)
+# --------------------------------------------------------------------------- #
+def _job_row_to_dict(r: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": r["id"], "kind": r["kind"], "client_id": r["client_id"], "status": r["status"],
+        "progress": json.loads(r["progress_json"] or "{}"),
+        "result": json.loads(r["result_json"]) if r["result_json"] else None,
+        "error": r["error"],
+    }
+
+
+def create_job(job_id: str, kind: str, client_id: int | None) -> None:
+    ts = _now()
+    initial = json.dumps({"phase": "starting", "done": 0, "total": 0, "message": ""})
+    with _pool.connection() as conn:
+        conn.execute(
+            f"INSERT INTO {SCHEMA}.jobs (id, kind, client_id, status, progress_json, created_at, updated_at) "
+            f"VALUES (%s, %s, %s, 'running', %s, %s, %s)",
+            (job_id, kind, client_id, initial, ts, ts),
+        )
+
+
+def update_job_progress(job_id: str, fields: dict[str, Any]) -> None:
+    """Merge `fields` into the job's progress blob — one round trip via jsonb merge."""
+    if not fields:
+        return
+    with _pool.connection() as conn:
+        conn.execute(
+            f"UPDATE {SCHEMA}.jobs SET "
+            f"progress_json = (COALESCE(progress_json, '{{}}')::jsonb || %s::jsonb)::text, "
+            f"updated_at = %s WHERE id = %s",
+            (json.dumps(fields), _now(), job_id),
+        )
+
+
+def finish_job(job_id: str, status: str, result: dict[str, Any] | None = None, error: str | None = None) -> None:
+    phase_patch = {"phase": "done", "message": "Complete."} if status == "done" else {"phase": "error", "message": error or ""}
+    with _pool.connection() as conn:
+        conn.execute(
+            f"UPDATE {SCHEMA}.jobs SET status = %s, result_json = %s, error = %s, "
+            f"progress_json = (COALESCE(progress_json, '{{}}')::jsonb || %s::jsonb)::text, updated_at = %s "
+            f"WHERE id = %s",
+            (status, json.dumps(result) if result is not None else None, error, json.dumps(phase_patch), _now(), job_id),
+        )
+
+
+def get_job(job_id: str) -> dict[str, Any] | None:
+    with _pool.connection() as conn:
+        r = conn.execute(f"SELECT * FROM {SCHEMA}.jobs WHERE id = %s", (job_id,)).fetchone()
+    return _job_row_to_dict(r) if r else None
+
+
+def get_active_job(kind: str, client_id: int | None) -> dict[str, Any] | None:
+    with _pool.connection() as conn:
+        r = conn.execute(
+            f"SELECT * FROM {SCHEMA}.jobs WHERE kind = %s AND client_id = %s AND status = 'running' "
+            f"ORDER BY created_at DESC LIMIT 1",
+            (kind, client_id),
+        ).fetchone()
+    return _job_row_to_dict(r) if r else None
+
+
+# --------------------------------------------------------------------------- #
+# oauth_states (one-time CSRF nonces for the Google OAuth handshake)
+# --------------------------------------------------------------------------- #
+def create_oauth_state(state: str) -> None:
+    now = datetime.now(timezone.utc)
+    with _pool.connection() as conn:
+        # sweep anything abandoned (user never completed login) so this table stays small
+        conn.execute(
+            f"DELETE FROM {SCHEMA}.oauth_states WHERE created_at < %s",
+            ((now - timedelta(hours=1)).isoformat(),),
+        )
+        conn.execute(
+            f"INSERT INTO {SCHEMA}.oauth_states (state, created_at) VALUES (%s, %s)",
+            (state, now.isoformat()),
+        )
+
+
+def consume_oauth_state(state: str) -> bool:
+    """One-time use: True (and deletes the row) iff `state` was a valid, unused nonce."""
+    with _pool.connection() as conn:
+        cur = conn.execute(f"DELETE FROM {SCHEMA}.oauth_states WHERE state = %s RETURNING state", (state,))
+        return cur.fetchone() is not None
 
 
 init_db()

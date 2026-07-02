@@ -48,16 +48,16 @@ first run if they don't exist.
 
 ```
 Indexing Tool/
-├── app.py             # FastAPI app; mounts router + static; runs on :8010
+├── app.py             # FastAPI app; runs on :8010 locally, Vercel entrypoint in prod
 ├── router.py          # all /api/* endpoints + the job "work" functions
 ├── db.py              # Supabase Postgres (schema `indexing_tool`): schema, CRUD, bulk updates
-├── jobs.py            # in-memory background-job runner (start_job/get/active_for)
+├── jobs.py            # background-job runner, state in Postgres (start_job/get/active_for)
 ├── core_crawl.py      # sitemap discovery + full-site BFS crawl + internal link graph
 ├── core_gsc.py        # Google OAuth + URL Inspection + Search Analytics + sitemap submit
 ├── core_indexing.py   # service-account Indexing API client (google-auth; optional)
 ├── diagnose.py        # THE ENGINE: signals → page_type, issue buckets, link quality, nudge eligibility
-├── static/index.html  # entire UI (vanilla JS, single file)
-├── requirements.txt · .gitignore · PLAN.md · README.md
+├── static/index.html  # entire UI (vanilla JS, single file), served via a FastAPI route
+├── vercel.json · requirements.txt · .gitignore · PLAN.md · README.md
 ```
 
 The heavy work (HTML parsing, diagnosis, DB writes, URL inspection) is offloaded via
@@ -125,12 +125,36 @@ issue_type (headline), severity, recommendation, warnings[], nudge_eligible}`.
   Console. `~200 URLs/day` per Cloud project. `nudge-availability` probes per-property.
   Grey-area (officially job/event pages) — best-effort, surfaced in UI.
 
+## Deploying (Vercel)
+
+`app.py` exports `app = FastAPI()` at the repo root, which is a supported Vercel entrypoint —
+no restructuring needed. `vercel.json` sets `maxDuration: 300` (the Hobby-plan ceiling; raise it
+on Pro/Enterprise for large-site crawls — see [Vercel's duration docs](https://vercel.com/docs/functions/configuring-functions/duration)).
+
+Required **Environment Variables** in the Vercel project (Settings → Environment Variables —
+these are *not* read from a committed `.env`, which stays local/gitignored):
+- `DATABASE_URL`, `DIRECT_URL` — the Supabase Postgres connection strings.
+- `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`.
+
+After the first deploy, add the production callback URL —
+`https://<your-domain>/api/oauth/callback` — to the Google OAuth client's authorized
+redirect URIs (Google Cloud Console), same as the local `127.0.0.1:8010` one.
+
+**Background jobs (crawl/check/refresh/nudge) run via `asyncio.create_task` in the process
+that started them**, same as local dev — but a serverless instance isn't guaranteed to stay
+warm for a job's full duration the way a persistent `uvicorn` process is. Job/progress *state*
+lives in Postgres (`jobs` table) so polling works correctly no matter which instance answers a
+given request, but if the instance running the job itself gets recycled mid-crawl, the job can
+still stall. This is more likely to bite on very large sites; if a job seems stuck, the fallback
+is the same as the pre-existing "interrupted crawl" gotcha below — rerun the step.
+
 ## Known gotchas / TODO
 
 - **Stale link graph / dates need a full crawl.** In/Out (and Created/Modified) come from the
-  crawl. If a crawl was interrupted (server auto-reload mid-run — links save only on
-  completion), the graph is partial → run **1. Fetch / Crawl site** to rebuild. "Re-run
-  checkup" recomputes diagnosis from existing data but does NOT re-crawl.
+  crawl. If a crawl was interrupted (server auto-reload mid-run, or — on Vercel — an instance
+  recycling mid-job — links save only on completion), the graph is partial → run
+  **1. Fetch / Crawl site** to rebuild. "Re-run checkup" recomputes diagnosis from existing data
+  but does NOT re-crawl.
 - **Orphan detection is best-effort** — the crawler reads server-side HTML only, so
   JS-rendered nav isn't seen; cross-checked against GSC `referringUrls`. Self-links skipped.
 - **Not-yet-implemented (proposed):** add GSC Search-Analytics pages that aren't in our set

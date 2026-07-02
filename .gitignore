@@ -17,3 +17,6 @@ service_account*.json
 
 # Claude Code local tool state
 .claude/
+
+# Vercel CLI local project link/config
+.vercel

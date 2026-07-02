@@ -32,8 +32,6 @@ INDEX_HTML = os.path.join(_here, "static", "index.html")
 api = APIRouter(prefix="/api", tags=["indexing"])
 page = APIRouter()
 
-_oauth_states: dict[str, str] = {}
-
 # URL Inspection API daily ceiling per property (leave headroom under the 2k quota).
 INSPECT_CAP = 1800
 SA_LOOKBACK_DAYS = 90
@@ -349,16 +347,16 @@ async def oauth_start(request: Request) -> dict[str, Any]:
         raise HTTPException(400, "Google OAuth not configured (GOOGLE_OAUTH_CLIENT_ID/SECRET in the Cortex .env).")
     ru = _redirect_uri(request)
     state = uuid.uuid4().hex
-    _oauth_states[state] = ru
+    db.create_oauth_state(state)
     return {"auth_url": gsc.build_auth_url(ru, state)}
 
 
 @api.get("/oauth/callback")
 async def oauth_callback(request: Request, code: str | None = None,
                          state: str | None = None, error: str | None = None) -> HTMLResponse:
-    if error or not code or not state or state not in _oauth_states:
+    if error or not code or not state or not db.consume_oauth_state(state):
         return HTMLResponse(_close_html(f"Authorization failed: {error or 'invalid request'}."))
-    ru = _oauth_states.pop(state)
+    ru = _redirect_uri(request)
     try:
         token = await gsc.exchange_code(code, ru)
     except Exception as exc:  # noqa: BLE001
@@ -563,10 +561,10 @@ async def job_status(job_id: str) -> dict[str, Any]:
     job = jobs.get(job_id)
     if not job:
         raise HTTPException(404, "Job not found.")
-    return job.to_dict()
+    return job
 
 
 @api.get("/clients/{cid}/active")
 async def job_active(cid: int, kind: str) -> dict[str, Any]:
     job = jobs.active_for(kind, cid)
-    return {"job": job.to_dict() if job else None}
+    return {"job": job}
