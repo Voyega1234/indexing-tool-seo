@@ -1,0 +1,19 @@
+# Python venv
+.venv/
+.venv-mac/
+__pycache__/
+*.pyc
+
+# Secrets (Google OAuth creds, Supabase DB URLs, API keys)
+.env
+
+# Local databases (hold saved runs + OAuth tokens + the service-account key — secrets)
+*.db
+*.db-wal
+*.db-shm
+
+# Uploaded service-account key, if written to disk
+service_account*.json
+
+# Claude Code local tool state
+.claude/

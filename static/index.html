@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Indexing Tool</title>
+<style>
+  :root { --bd:#e5e7eb; --mut:#6b7280; --bg:#f6f7f9; --red:#dc2626; --yel:#d97706; --grn:#16a34a; --blu:#2563eb; }
+  * { box-sizing:border-box; }
+  body { font:14px/1.45 -apple-system,Segoe UI,Roboto,sans-serif; margin:0; color:#111827; background:var(--bg); }
+  a { color:var(--blu); text-decoration:none; } a:hover { text-decoration:underline; }
+  button { font:inherit; cursor:pointer; border:1px solid var(--bd); background:#fff; border-radius:8px; padding:7px 12px; }
+  button.primary { background:var(--blu); color:#fff; border-color:var(--blu); }
+  button.primary:disabled { opacity:.5; cursor:not-allowed; }
+  button.sm { padding:4px 9px; font-size:13px; }
+  select, input { font:inherit; border:1px solid var(--bd); border-radius:8px; padding:7px 10px; background:#fff; }
+  header { background:#fff; border-bottom:1px solid var(--bd); padding:10px 18px; display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  header h1 { font-size:16px; margin:0 8px 0 0; }
+  .grow { flex:1; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid transparent; white-space:nowrap; }
+  .pill.red{ background:#fef2f2; color:var(--red); } .pill.yellow{ background:#fffbeb; color:var(--yel); }
+  .pill.green{ background:#f0fdf4; color:var(--grn); } .pill.info{ background:#eff6ff; color:var(--blu); }
+  .pill.grey{ background:#f3f4f6; color:#4b5563; }
+  .pill.new{ background:#ecfdf5; color:#059669; border-color:#a7f3d0; }
+  td .pill { margin:1px 4px 2px 0; white-space:normal; }
+  td.mid .pill, .vpill { white-space:nowrap; }
+  /* rich Recommendation cell */
+  td.rec { font-size:12.5px; line-height:1.4; }
+  .rec-head { margin-bottom:2px; }
+  .rec-head b { font-weight:600; }
+  .rec-why { font-size:11.5px; margin:2px 0; }
+  ul.rec-fix { margin:3px 0 0; padding-left:16px; }
+  ul.rec-fix li { margin:1px 0; }
+  .rec-more { font-size:11px; margin-top:4px; }
+  .rec-more .tag { background:#f3f4f6; color:#4b5563; border-radius:5px; padding:0 6px; margin-right:4px; white-space:nowrap; }
+  .collapsebar { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .ptype { font-size:12px; color:#374151; background:#f3f4f6; border-radius:5px; padding:1px 7px; white-space:nowrap; }
+  .dline { font-size:11.5px; line-height:1.4; white-space:nowrap; color:#4b5563; }
+  .dline b { font-weight:700; }
+  .dc { color:#2563eb; } .dm { color:#d97706; } .di { color:#16a34a; }
+  .muted { color:var(--mut); }
+  main { padding:18px; }
+  .toolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+  .dash { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+  .card { background:#fff; border:1px solid var(--bd); border-radius:12px; padding:14px 16px; }
+  .kpis { display:flex; gap:22px; }
+  .kpi b { font-size:22px; display:block; }
+  .buckets { flex:1 1 auto; min-width:340px; max-width:600px; }
+  .brow { display:flex; align-items:center; gap:10px; padding:5px 6px; border-radius:7px; cursor:pointer; }
+  .brow:hover { background:var(--bg); }
+  .brow .c { margin-left:auto; font-weight:700; }
+  .dot { width:9px; height:9px; border-radius:50%; }
+  .dot.red{background:var(--red)} .dot.yellow{background:var(--yel)} .dot.green{background:var(--grn)} .dot.info{background:var(--blu)}
+  .tablewrap { border:1px solid var(--bd); border-radius:12px; overflow:auto; background:#fff; max-height:calc(100vh - 190px); }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; }
+  th, td { text-align:left; padding:7px 9px; border-bottom:1px solid var(--bd); vertical-align:top; font-size:13px; overflow-wrap:anywhere; }
+  th { background:#fafafa; position:sticky; top:0; z-index:2; font-size:12px; color:var(--mut); white-space:nowrap; box-shadow:inset 0 -1px 0 var(--bd); }
+  tr:hover td { background:#fcfcfd; }
+  td.u a { font-weight:600; word-break:break-all; } td .sub { color:var(--mut); font-size:12px; line-height:1.3; }
+  tr.grouprow td { background:#eef2f7; font-weight:600; font-size:13px; padding:6px 10px; border-top:2px solid #d7dee7; }
+  td.num, th.num, td.mid, th.mid { text-align:center; }
+  td.num, td.mid, th.num, th.mid { vertical-align:middle; }
+  .lnk { color:var(--blu); cursor:pointer; }
+  .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .prog { height:6px; background:#eef0f3; border-radius:6px; overflow:hidden; margin:6px 0; }
+  .prog > i { display:block; height:100%; background:var(--blu); width:0; transition:width .3s; }
+  .banner { background:#fffbeb; border:1px solid #fde68a; color:#92400e; padding:8px 12px; border-radius:8px; font-size:13px; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.35); display:none; align-items:center; justify-content:center; z-index:20; }
+  .overlay.on { display:flex; }
+  .modal { background:#fff; border-radius:12px; padding:20px; width:min(560px,92vw); max-height:88vh; overflow:auto; }
+  .modal h3 { margin-top:0; }
+  .field { margin:10px 0; } .field label { display:block; font-size:12px; color:var(--mut); margin-bottom:4px; }
+  .field input, .field textarea, .field select { width:100%; }
+  .side { position:fixed; top:0; right:0; height:100%; width:min(560px,94vw); background:#fff; border-left:1px solid var(--bd); box-shadow:-8px 0 24px rgba(0,0,0,.08); transform:translateX(100%); transition:.2s; z-index:15; overflow:auto; padding:18px; }
+  .side.on { transform:none; }
+  .warn { border-left:3px solid var(--bd); padding:6px 10px; margin:6px 0; background:var(--bg); border-radius:0 6px 6px 0; }
+  .warn.red{ border-color:var(--red);} .warn.yellow{ border-color:var(--yel);} .warn.info{ border-color:var(--blu);}
+  code { background:#f3f4f6; padding:1px 5px; border-radius:4px; font-size:12px; }
+  .empty { text-align:center; color:var(--mut); padding:48px; }
+  th[data-tip] { cursor:help; }
+  th[data-sort] { cursor:pointer; }
+  th[data-sort]:hover { color:#111827; }
+  th .sa { font-size:10px; color:var(--blu); }
+  #tooltip { position:fixed; z-index:100; display:none; max-width:260px; background:#111827; color:#fff; padding:7px 10px; border-radius:7px; font-size:12px; font-weight:400; line-height:1.4; box-shadow:0 6px 20px rgba(0,0,0,.25); pointer-events:none; }
+  .multi { position:relative; display:inline-block; }
+  .multi > summary { list-style:none; cursor:pointer; border:1px solid var(--bd); border-radius:8px; padding:7px 10px; background:#fff; user-select:none; }
+  .multi > summary::-webkit-details-marker { display:none; }
+  .multi[open] > summary { border-color:var(--blu); }
+  .multi .menu { position:absolute; z-index:14; top:calc(100% + 4px); left:0; min-width:190px; max-height:300px; overflow:auto; background:#fff; border:1px solid var(--bd); border-radius:8px; box-shadow:0 8px 22px rgba(0,0,0,.14); padding:6px; }
+  .multi .menu label { display:block; padding:4px 6px; font-size:13px; cursor:pointer; border-radius:5px; }
+  .multi .menu label:hover { background:var(--bg); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔎 Indexing Tool</h1>
+  <select id="clientSel" title="Client"></select>
+  <button class="sm" onclick="openClientModal()">+ New client</button>
+  <span class="grow"></span>
+  <span id="gscMini" class="muted"></span>
+  <button class="sm" onclick="openOverlay('helpModal')">❔ Help</button>
+  <button class="sm" onclick="openSettings()">⚙ Settings</button>
+</header>
+
+<main id="main">
+  <div class="empty" id="noClient">Create or select a client to begin.</div>
+  <div id="workspace" style="display:none">
+    <div class="collapsebar">
+      <button class="sm" id="btnCollapse" onclick="toggleTop()" title="Hide the controls + dashboard to give the table more room">▾ Hide controls</button>
+    </div>
+    <div id="topPanel">
+    <div class="toolbar">
+      <button class="primary" id="btnCrawl" onclick="doCrawl()">1. Fetch / Crawl site</button>
+      <button id="btnCheck" onclick="doCheck()">2. Check index status</button>
+      <button id="btnRefresh" onclick="doRefresh()">↻ Refresh data</button>
+      <button id="btnRecheckup" onclick="doDiagnose()" title="Re-run the diagnosis on existing data (no crawl)">⟳ Re-run checkup</button>
+      <span class="grow"></span>
+      <button class="primary" id="btnNudge" onclick="doNudge()" disabled>3. Request Indexing (0)</button>
+      <button id="btnSitemap" onclick="doSubmitSitemap()">Submit sitemap</button>
+    </div>
+    <div id="jobBox" style="display:none" class="card" >
+      <div id="jobMsg" class="muted">Working…</div>
+      <div class="prog"><i id="jobBar"></i></div>
+    </div>
+    <div id="nudgeNote"></div>
+
+    <div class="dash" id="dash"></div>
+    </div><!-- /topPanel -->
+
+    <div class="filters">
+      <select id="fGroup" onchange="render()" title="Group rows by">
+        <option value="">No grouping</option>
+        <option value="page_type">Group: Type</option>
+        <option value="issue_type">Group: Issue</option>
+        <option value="action">Group: Verdict</option>
+        <option value="severity">Group: Severity</option>
+        <option value="index_status">Group: Status</option>
+      </select>
+      <input id="search" placeholder="Search URL / title…" oninput="render()" style="min-width:200px">
+      <select id="fVerdict" onchange="render()" title="Filter by what to do about the page">
+        <option value="">All verdicts</option>
+        <option value="fix">🔴 Fix</option>
+        <option value="review">🟡 Review</option>
+        <option value="ignore">⚪ Ignore (no action)</option>
+        <option value="ok">🟢 OK</option>
+        <option value="unchecked">· Unchecked</option>
+      </select>
+      <select id="fStatus" onchange="render()">
+        <option value="">All statuses</option>
+        <option value="indexed">Indexed</option>
+        <option value="not_indexed">Not indexed</option>
+        <option value="requested">Requested</option>
+        <option value="unknown">Unknown</option>
+      </select>
+      <select id="fSeverity" onchange="render()">
+        <option value="">All severities</option>
+        <option value="red">🔴 Red</option>
+        <option value="yellow">🟡 Yellow</option>
+        <option value="green">🟢 Healthy</option>
+        <option value="info">⚪ Info / unchecked</option>
+      </select>
+      <select id="fBucket" onchange="render()"><option value="">All issues</option></select>
+      <details class="multi" id="fTypeWrap"><summary id="fTypeSum">Types</summary><div class="menu" id="fTypeMenu"></div></details>
+      <label><input type="checkbox" id="fEligible" onchange="render()"> nudge-eligible only</label>
+      <span class="grow"></span>
+      <label><input type="checkbox" id="selAll" onchange="toggleAll(this.checked)"> select all eligible</label>
+    </div>
+
+    <div class="tablewrap">
+    <table>
+      <colgroup>
+        <col style="width:28px"><col><col style="width:80px"><col style="width:104px"><col style="width:128px">
+        <col><col style="width:92px"><col style="width:56px"><col style="width:44px"><col style="width:44px">
+        <col style="width:80px"><col style="width:64px">
+      </colgroup>
+      <thead><tr>
+        <th></th>
+        <th data-sort="url" data-tip="Page URL (path + query shown) and its title">URL</th>
+        <th data-sort="page_type" data-tip="Page type. Use the Type filter to hide clutter (System / Parameter / Author / Tag / Category / Feed) and focus on Page / Blog / Product.">Type</th>
+        <th data-sort="index_status" data-tip="Google index status, with Google's own coverage reason underneath">Index</th>
+        <th data-sort="issue_type" data-tip="All detected issues, worst first. Hover a pill for the detail + fix.">Issue</th>
+        <th data-tip="Suggested fix for the top-priority issue on this page">Recommendation</th>
+        <th class="mid" data-sort="modified_date" data-tip="Created = first publish date we recorded (stable, never overwritten). Modified = latest sitemap/page date. Indexed = when we first saw it indexed. (Sorts by Modified.)">Dates</th>
+        <th class="num" data-sort="impressions" data-tip="Search impressions (last 90 days). Any impressions means the page IS indexed.">Impr.</th>
+        <th class="num" data-sort="inbound_count" data-tip="Inbound internal links — pages that link TO this page (0 = orphan). Click a number to see them.">In</th>
+        <th class="num" data-sort="outbound_count" data-tip="Outbound internal links — pages this page links to. Click a number to see them.">Out</th>
+        <th class="mid" data-sort="link_quality" data-tip="Link quality: Orphan (no links) / Weak (only low-value or non-indexed sources) / Deep (far from home) / OK">Link</th>
+        <th class="mid" data-sort="canon" data-tip="Canonical — ✗ when Google chose a different canonical than this URL (duplicate signal)">Canon.</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    </div>
+    <div class="muted" id="tableFoot" style="margin-top:8px"></div>
+  </div>
+</main>
+
+<!-- client modal -->
+<div class="overlay" id="clientModal"><div class="modal">
+  <h3>New client</h3>
+  <div class="field"><label>Client name *</label><input id="cName" placeholder="Acme Solar"></div>
+  <div class="field"><label>Sitemap URL (or website URL)</label><input id="cSitemap" placeholder="https://example.com/sitemap.xml"></div>
+  <div style="display:flex;gap:8px;justify-content:flex-end">
+    <button onclick="closeOverlay('clientModal')">Cancel</button>
+    <button class="primary" onclick="createClient()">Create</button>
+  </div>
+</div></div>
+
+<!-- settings modal (one-time setups) -->
+<div class="overlay" id="settingsModal"><div class="modal">
+  <h3>Settings</h3>
+
+  <div class="field">
+    <label>Google Search Console account</label>
+    <div id="setGsc"></div>
+  </div>
+
+  <div class="field">
+    <label>GSC property for this client</label>
+    <select id="propSel"></select>
+    <div style="margin-top:6px">
+      <button class="sm primary" onclick="saveProperty()">Save property</button>
+      <span id="propCur" class="muted" style="margin-left:8px"></span>
+    </div>
+  </div>
+
+  <hr style="border:none;border-top:1px solid var(--bd);margin:16px 0">
+
+  <div class="field">
+    <label>Service account — optional, enables one-click Request Indexing</label>
+    <div id="setSa"></div>
+    <div style="margin:6px 0"><input type="file" id="saFile" accept=".json,application/json" onchange="loadSAFile(this)"> <span class="muted" style="font-size:12px">upload the JSON key file…</span></div>
+    <textarea id="saJson" rows="5" placeholder='…or paste the service-account JSON key here'></textarea>
+    <div style="margin-top:6px">
+      <button class="sm primary" onclick="uploadSA()">Save key</button>
+      <button class="sm" id="saRemoveBtn" onclick="removeSA()" style="display:none">Remove</button>
+      <span id="saMsg" style="margin-left:8px;font-size:12px"></span>
+    </div>
+    <p class="muted" style="font-size:12px">One robot for all clients — add its <code>client_email</code> as an <b>Owner</b> of each property in Search Console. Don't paste keys anywhere but here.</p>
+  </div>
+
+  <div style="text-align:right;margin-top:8px"><button onclick="closeOverlay('settingsModal')">Close</button></div>
+</div></div>
+
+<!-- help / tutorial modal -->
+<div class="overlay" id="helpModal"><div class="modal" style="max-width:660px">
+  <h3>How to use — quick guide</h3>
+
+  <h4 style="margin:14px 0 4px">First time (per client)</h4>
+  <ol style="margin:0;padding-left:20px;line-height:1.6">
+    <li><b>+ New client</b> — enter a name and the sitemap URL.</li>
+    <li><b>⚙ Settings</b> — Connect Google, pick the GSC property, Save. <span class="muted">(Optional: upload the service-account key to enable one-click Request Indexing.)</span></li>
+    <li><b>1. Fetch / Crawl site</b> — crawls the site and builds the page list + internal link graph.</li>
+    <li><b>2. Check index status</b> — asks Google which pages are indexed and why. The table then fills with status, issues and fixes.</li>
+  </ol>
+
+  <h4 style="margin:14px 0 4px">Reading the table</h4>
+  <ul style="margin:0;padding-left:20px;line-height:1.6">
+    <li><b>Type</b> — use the <b>Types</b> filter to hide clutter (System / Parameter / Author…) and focus on Page / Blog / Product.</li>
+    <li><b>Index</b> — indexed or not, with Google's reason (Discovered, Crawled…). Hover for the full text.</li>
+    <li><b>Issue</b> — what's wrong (worst first); hover a pill for detail. <b>Recommendation</b> = what to do about it.</li>
+    <li><b>In / Out</b> — internal links; <b>0 In = orphan</b>. Click a number to see which pages link there.</li>
+    <li><b>Dates</b> — Created / Modified / Indexed. Use <b>Group by</b>, the filters, and click any header to <b>sort</b>.</li>
+  </ul>
+
+  <h4 style="margin:14px 0 4px">Fixing &amp; requesting indexing</h4>
+  <ul style="margin:0;padding-left:20px;line-height:1.6">
+    <li>Work the issues: add internal links to orphans, consolidate duplicates, remove sitemap junk, improve thin pages.</li>
+    <li>For pages that are ready, tick them (or <b>select all eligible</b>) → <b>3. Request Indexing</b> and/or <b>Submit sitemap</b>.</li>
+    <li><b>Request Indexing is a nudge, not a fix</b> — fix the underlying issue first, then nudge.</li>
+  </ul>
+
+  <h4 style="margin:14px 0 4px">Routine (ongoing)</h4>
+  <ul style="margin:0;padding-left:20px;line-height:1.6">
+    <li><b>↻ Refresh data</b> — re-crawl + re-check in one go; newly-indexed pages get a 🆕 tag.</li>
+    <li><b>⟳ Re-run checkup</b> — recompute the diagnosis instantly (no crawl), e.g. after a site fix.</li>
+  </ul>
+
+  <h4 style="margin:14px 0 4px">Button cheat-sheet</h4>
+  <ul style="margin:0;padding-left:20px;line-height:1.6;font-size:13px" class="muted">
+    <li><b>1. Fetch / Crawl site</b> — build/rebuild the page list + link graph (first, and after site changes).</li>
+    <li><b>2. Check index status</b> — pull Google index status + reasons (needs a saved GSC property).</li>
+    <li><b>↻ Refresh data</b> — re-crawl + re-check together (routine health check).</li>
+    <li><b>⟳ Re-run checkup</b> — recompute the diagnosis only; instant, no network.</li>
+    <li><b>3. Request Indexing</b> — nudge the selected pages via Google (needs the service account).</li>
+    <li><b>Submit sitemap</b> — ping Google with the sitemap URL.</li>
+    <li><b>⚙ Settings</b> — Google connection, GSC property, service account.</li>
+  </ul>
+
+  <div style="text-align:right;margin-top:14px"><button class="primary" onclick="closeOverlay('helpModal')">Got it</button></div>
+</div></div>
+
+<!-- detail side panel -->
+<div class="side" id="side"></div>
+<div id="tooltip"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const api = async (path, opts) => {
+  const r = await fetch('/api' + path, { headers:{'Content-Type':'application/json'}, ...opts });
+  if (!r.ok) { const t = await r.text(); throw new Error(t || r.status); }
+  return r.headers.get('content-type')?.includes('json') ? r.json() : r.text();
+};
+const state = { clients:[], client:null, urls:[], summary:null, selected:new Set(), typeSel:new Set(), sort:{key:null,dir:'asc'}, poll:null };
+
+const ISSUE = {
+  server_error:'Server error', not_found:'Not found (404)', forbidden:'Blocked (403)', redirect:'Redirects',
+  template_var:'Broken URL template', feed:'Feed URL', param_url:'Parameter URL', archive:'Low-value archive',
+  utility:'Utility page', duplicate_pattern:'Duplicate URL', wrong_canonical:'Wrong canonical',
+  noindex:'noindex/robots', discovered:'Discovered', crawled_not_indexed:'Crawled – thin',
+  orphan:'Orphan', weak_links:'Weakly linked', deep:'Deep page', healthy:'Healthy',
+  unchecked:'Not checked', not_indexed:'Not indexed',
+  not_in_sitemap:'Not in sitemap', lost_page:'Lost page' };
+const STATUS_PILL = { indexed:'green', not_indexed:'yellow', requested:'info', unknown:'info' };
+// page-level verdict: what to actually DO about the page
+const VERDICT = {
+  fix:      { label:'Fix',       cls:'red'   },
+  review:   { label:'Review',    cls:'yellow'},
+  ignore:   { label:'Ignore',    cls:'grey'  },
+  ok:       { label:'OK',        cls:'green' },
+  unchecked:{ label:'Unchecked', cls:'info'  },
+};
+function htm(s){ return (s==null?'':String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+// the rich Recommendation cell: verdict pill + problem + why + fix bullets + secondary issues
+function recCell(r){
+  const v = VERDICT[r.action] || VERDICT.review;
+  const rec = r.rec || { problem:(r.recommendation||''), why:'', fix:[] };
+  let h = `<div class="rec-head"><span class="pill ${v.cls} vpill">${v.label}</span> <b>${htm(rec.problem||'')}</b></div>`;
+  if(rec.why) h += `<div class="rec-why muted">${htm(rec.why)}</div>`;
+  const fixes = rec.fix || [];
+  if(fixes.length) h += `<ul class="rec-fix">`+fixes.map(f=>`<li>${htm(f)}</li>`).join('')+`</ul>`;
+  const more = rec.more || [];
+  if(more.length) h += `<div class="rec-more muted">Also: `
+     + more.map(m=>`<span class="tag" title="${htm(m.fix||'')}">${ISSUE[m.type]||m.type}</span>`).join('') + `</div>`;
+  return h;
+}
+const VERDICT_GROUP = { fix:'🔴 Fix', review:'🟡 Review', ignore:'⚪ Ignore (no action)', ok:'🟢 OK', unchecked:'· Unchecked' };
+
+// ---------- boot ----------
+async function boot(){
+  await Promise.all([loadClients(), refreshGsc(), refreshSA()]);
+  window.addEventListener('message', e => { if(e.data==='gsc-auth-changed'){ $('#settingsModal').classList.contains('on') ? openSettings() : refreshGsc(); } });
+}
+async function loadClients(){
+  state.clients = await api('/clients');
+  const sel = $('#clientSel'); sel.innerHTML = '';
+  state.clients.forEach(c => sel.add(new Option(c.name, c.id)));
+  sel.onchange = () => selectClient(+sel.value);
+  if (state.clients.length) selectClient(state.clients[0].id);
+  else { $('#noClient').style.display=''; $('#workspace').style.display='none'; }
+}
+async function selectClient(id){
+  clearInterval(state.poll); $('#jobBox').style.display='none';   // don't carry another client's progress
+  state.client = await api('/clients/'+id);
+  $('#clientSel').value = id;
+  $('#noClient').style.display='none'; $('#workspace').style.display='';
+  state.selected.clear();
+  await loadUrls();
+  await refreshNudgeAvailability();
+  // if a job is already running for this client, re-attach the progress bar (jobs run
+  // server-side and keep going even if you navigate away)
+  for(const kind of ['crawl','check','refresh','nudge']){
+    try{ const {job}=await api('/clients/'+id+'/active?kind='+kind); if(job){ pollJob(job.id, loadUrls); break; } }catch{}
+  }
+}
+
+// ---------- clients ----------
+function openClientModal(){ $('#cName').value=''; $('#cSitemap').value=''; openOverlay('clientModal'); }
+async function createClient(){
+  const name=$('#cName').value.trim(); if(!name) return alert('Name required');
+  const c = await api('/clients',{method:'POST',body:JSON.stringify({name, sitemap_url:$('#cSitemap').value.trim()})});
+  closeOverlay('clientModal'); await loadClients(); selectClient(c.id);
+}
+
+// ---------- urls + render ----------
+async function loadUrls(){
+  const d = await api('/clients/'+state.client.id+'/urls');
+  state.urls = d.urls; state.summary = d.summary; render();
+}
+function fresh(dateStr){ if(!dateStr) return false; const d=new Date(dateStr); return (Date.now()-d)/(864e5) <= 30; }
+function canonBad(r){ const g=(r.google_canonical||'').replace(/\/$/,''); return g && g !== (r.url||'').replace(/\/$/,''); }
+const _MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function fmtD(d){
+  if(!d) return '—';
+  const dt=new Date(d);
+  if(isNaN(dt.getTime())) return String(d).slice(0,10);
+  return `${dt.getDate()} ${_MON[dt.getMonth()]} ${String(dt.getFullYear()).slice(2)}`;
+}
+function datesCell(r){
+  const line=(lbl,cls,d)=>`<div class="dline"><b class="${cls}">${lbl}</b> ${fmtD(d)}</div>`;
+  return line('C','dc',r.created_date) + line('M','dm',r.modified_date) + line('I','di',r.indexed_detected_at);
+}
+const LINK_RANK={orphan:3,weak:2,deep:1,ok:0};
+function cmpRows(a,b,key,dir){
+  let va,vb;
+  if(key==='canon'){ va=canonBad(a)?1:0; vb=canonBad(b)?1:0; }
+  else if(key==='link_quality'){ va=LINK_RANK[a.link_quality]??-1; vb=LINK_RANK[b.link_quality]??-1; }
+  else if(['impressions','inbound_count','outbound_count'].includes(key)){ va=+a[key]||0; vb=+b[key]||0; }
+  else { va=(a[key]||'').toString().toLowerCase(); vb=(b[key]||'').toString().toLowerCase(); }
+  if(va<vb) return dir==='asc'?-1:1;
+  if(va>vb) return dir==='asc'?1:-1;
+  return 0;
+}
+function setSort(key){
+  const numeric=['impressions','inbound_count','outbound_count','canon','link_quality'].includes(key);
+  if(state.sort.key===key) state.sort.dir = state.sort.dir==='asc'?'desc':'asc';
+  else { state.sort.key=key; state.sort.dir = numeric?'desc':'asc'; }
+  render();
+}
+function updateSortArrows(){
+  document.querySelectorAll('th[data-sort]').forEach(th=>{
+    const s=th.querySelector('.sa'); if(s) s.remove();
+    if(state.sort.key===th.getAttribute('data-sort')){
+      const el=document.createElement('span'); el.className='sa';
+      el.textContent = state.sort.dir==='asc' ? ' ▲' : ' ▼'; th.appendChild(el);
+    }
+  });
+}
+
+function buildRow(r){
+  const tr=document.createElement('tr');
+  const path=(()=>{try{const u=new URL(r.url);return u.pathname+u.search}catch{return r.url}})();
+  const eli=r.nudge_eligible;
+  tr.innerHTML = `
+      <td>${eli?`<input type="checkbox" ${state.selected.has(r.url)?'checked':''} onchange="toggleOne('${enc(r.url)}',this.checked)">`:''}</td>
+      <td class="u"><a href="${r.url}" target="_blank" title="${r.url}">${path}</a>
+          ${fresh(r.indexed_detected_at)?'<span class="pill new">NEW</span>':''}
+          <div class="sub">${(r.title||'').slice(0,70)}</div></td>
+      <td><span class="ptype">${r.page_type||''}</span></td>
+      <td><span class="pill ${STATUS_PILL[r.index_status]||'info'}">${labelStatus(r.index_status)}</span>${r.coverage_state?`<div class="sub" title="${(r.coverage_state||'').replace(/"/g,'&quot;')}">${covShort(r.coverage_state)}</div>`:''}</td>
+      <td>${issuePills(r)}</td>
+      <td class="rec">${recCell(r)}</td>
+      <td class="mid">${datesCell(r)}</td>
+      <td class="num">${r.impressions||''}</td>
+      <td class="num">${r.inbound_count?`<span class="lnk" onclick="openDetail('${enc(r.url)}')">${r.inbound_count}</span>`:'<span class="muted">0</span>'}</td>
+      <td class="num">${r.outbound_count?`<span class="lnk" onclick="openDetail('${enc(r.url)}')">${r.outbound_count}</span>`:'<span class="muted">0</span>'}</td>
+      <td class="mid">${linkQ(r.link_quality)}</td>
+      <td class="mid">${canonBad(r)?'<span class="pill red" title="'+(r.google_canonical||'')+'">✗</span>':'<span class="muted">✓</span>'}</td>`;
+  tr.querySelector('.u').addEventListener('click', e=>{ if(e.target.tagName!=='A'){ openDetail(r.url);} });
+  return tr;
+}
+function render(){
+  renderDash();
+  // page-type multi-select checkboxes (rebuilt from current data, selection preserved)
+  const types=[...new Set(state.urls.map(r=>r.page_type).filter(Boolean))].sort();
+  $('#fTypeMenu').innerHTML = types.length
+    ? types.map(t=>`<label><input type="checkbox" ${state.typeSel.has(t)?'checked':''} onchange="toggleType('${t}',this.checked)"> ${t}</label>`).join('')
+    : '<span class="muted">—</span>';
+  $('#fTypeSum').textContent = state.typeSel.size ? `Types (${state.typeSel.size})` : 'Types';
+  // issue filter — COMPLETE list from every detected issue (not just the headline), with counts
+  const issueCounts={};
+  state.urls.forEach(r=>{
+    const ws=r.warnings||[];
+    if(ws.length) [...new Set(ws.map(w=>w.type))].forEach(t=>issueCounts[t]=(issueCounts[t]||0)+1);
+    else if(r.issue_type) issueCounts[r.issue_type]=(issueCounts[r.issue_type]||0)+1;
+  });
+  const bsel=$('#fBucket'), curB=bsel.value;
+  bsel.innerHTML='<option value="">All issues</option>'+Object.keys(issueCounts)
+    .sort((a,b)=>issueCounts[b]-issueCounts[a])
+    .map(k=>`<option value="${k}">${ISSUE[k]||k} (${issueCounts[k]})</option>`).join('');
+  bsel.value=curB;
+
+  const q=$('#search').value.toLowerCase(), fs=$('#fStatus').value, fsev=$('#fSeverity').value,
+        fb=$('#fBucket').value, feli=$('#fEligible').checked, fv=$('#fVerdict').value;
+  let rows = state.urls.filter(r=>{
+    if(q && !(r.url.toLowerCase().includes(q) || (r.title||'').toLowerCase().includes(q))) return false;
+    if(fs && (r.index_status||'unknown')!==fs) return false;
+    if(fv && (r.action||'')!==fv) return false;
+    if(fsev && (r.severity||'info')!==fsev) return false;
+    if(fb && !((r.warnings||[]).some(w=>w.type===fb) || (r.issue_type||'')===fb)) return false;
+    if(state.typeSel.size && !state.typeSel.has(r.page_type)) return false;
+    if(feli && !r.nudge_eligible) return false;
+    return true;
+  });
+  if(state.sort.key){ const {key,dir}=state.sort; rows=rows.slice().sort((a,b)=>cmpRows(a,b,key,dir)); }
+  const tb=$('#rows'); tb.innerHTML='';
+  const capped = rows.slice(0,1000);
+  const gb=$('#fGroup').value;
+  if(gb){
+    // keyFn returns ONE OR MORE group keys per row. Group-by-Issue returns every
+    // issue on the page (so a page with multiple issues appears under each); the
+    // others are single-valued.
+    const keyFn = {
+      page_type: r=>[r.page_type||'—'],
+      issue_type: r=>{ const ws=r.warnings||[]; return ws.length ? [...new Set(ws.map(w=>ISSUE[w.type]||w.type))] : [ISSUE[r.issue_type]||r.issue_type||'—']; },
+      action: r=>[VERDICT_GROUP[r.action]||r.action||'—'],
+      severity: r=>[({red:'🔴 Red',yellow:'🟡 Yellow',green:'🟢 Healthy',info:'ℹ Info'})[r.severity]||r.severity||'—'],
+      index_status: r=>[labelStatus(r.index_status)],
+    }[gb];
+    const groups=new Map();
+    capped.forEach(r=>keyFn(r).forEach(k=>{ (groups.get(k) || groups.set(k,[]).get(k)).push(r); }));
+    [...groups.entries()].sort((a,b)=>b[1].length-a[1].length).forEach(([k,rs])=>{
+      const hr=document.createElement('tr'); hr.className='grouprow';
+      hr.innerHTML=`<td colspan="12">${k} <span class="muted">· ${rs.length}</span></td>`;
+      tb.appendChild(hr);
+      rs.forEach(r=>tb.appendChild(buildRow(r)));
+    });
+  } else {
+    capped.forEach(r=>tb.appendChild(buildRow(r)));
+  }
+  $('#tableFoot').textContent = `${rows.length} of ${state.urls.length} URLs`
+    + (rows.length>1000?' (showing first 1000)':'')
+    + ($('#fGroup').value==='issue_type' ? ' · grouped by issue — a page with multiple issues appears under each' : '');
+  updateSortArrows();
+  updateNudgeBtn();
+}
+function labelStatus(s){ return ({indexed:'Indexed',not_indexed:'Not indexed',requested:'Requested',unknown:'Unknown'})[s]||s||'—'; }
+function covShort(cov){
+  const c=(cov||'').toLowerCase(); if(!c) return '';
+  if(c.includes('discovered')) return 'Discovered';
+  if(c.includes('crawled')) return 'Crawled';
+  if(c.includes('duplicate')) return 'Duplicate';
+  if(c.includes('alternate')) return 'Alternate';
+  if(c.includes('redirect')) return 'Redirect';
+  if(c.includes('not found')||c.includes('404')) return '404';
+  if(c.includes('noindex')||c.includes('excluded')) return 'Excluded';
+  if(c.includes('unknown')) return 'Unknown to Google';
+  if(c.includes('indexed')) return 'Indexed';
+  return cov;
+}
+function linkQ(q){ if(!q) return ''; const m={orphan:'red',weak:'yellow',deep:'yellow',ok:'green'}; const L={orphan:'Orphan',weak:'Weak',deep:'Deep',ok:'OK'}; return `<span class="pill ${m[q]||'info'}">${L[q]||q}</span>`; }
+function severRank(s){ return ({red:3,yellow:2,info:1,green:0})[s] ?? 1; }
+function issuePills(r){
+  const ws=(r.warnings||[]).slice().sort((a,b)=>severRank(b.severity)-severRank(a.severity));
+  if(!ws.length) return `<span class="pill ${r.severity||'info'}">${ISSUE[r.issue_type]||r.issue_type||'—'}</span>`;
+  const tip=w=>{ const p=w.problem||w.message||''; const f=(w.fix&&w.fix[0])||w.recommendation||''; return (p+(f?' — '+f:'')).replace(/"/g,'&quot;'); };
+  return ws.map(w=>`<span class="pill ${w.severity}" title="${tip(w)}">${ISSUE[w.type]||w.type}</span>`).join('');
+}
+function enc(s){ return s.replace(/'/g,"\\'"); }
+
+function renderDash(){
+  const s=state.summary; if(!s){ $('#dash').innerHTML=''; return; }
+  const i=s.index||{};
+  $('#dash').innerHTML = `
+    <div class="card"><div class="kpis">
+      <div class="kpi"><b>${i.indexed||0}</b><span class="muted">Indexed</span></div>
+      <div class="kpi"><b>${(i.not_indexed||0)+(i.requested||0)}</b><span class="muted">Not indexed</span></div>
+      <div class="kpi"><b>${i.unknown||0}</b><span class="muted">Unchecked</span></div>
+      <div class="kpi"><b>${s.total||0}</b><span class="muted">Total</span></div>
+    </div></div>
+    <div class="card buckets">
+      <div class="muted" style="margin-bottom:6px">Why pages aren't indexed — click to filter</div>
+      ${(s.buckets||[]).filter(b=>b.key!=='healthy').map(b=>`
+        <div class="brow" onclick="filterBucket('${b.key}')">
+          <span class="dot ${b.severity}"></span><span>${ISSUE[b.key]||b.key}</span><span class="c">${b.count}</span></div>`).join('') || '<span class="muted">Run the checkup.</span>'}
+    </div>`;
+}
+function filterBucket(k){ $('#fBucket').value=k; render(); }
+function toggleTop(){
+  const p=$('#topPanel'), b=$('#btnCollapse');
+  const hide = p.style.display!=='none';
+  p.style.display = hide?'none':'';
+  b.textContent = hide?'▸ Show controls':'▾ Hide controls';
+}
+
+// ---------- selection + nudge ----------
+function toggleType(t,on){ on?state.typeSel.add(t):state.typeSel.delete(t); render(); }
+function toggleOne(u,on){ on?state.selected.add(u):state.selected.delete(u); updateNudgeBtn(); }
+function toggleAll(on){
+  state.selected.clear();
+  if(on) state.urls.filter(r=>r.nudge_eligible).forEach(r=>state.selected.add(r.url));
+  render();
+}
+function updateNudgeBtn(){
+  const n=state.selected.size;
+  const btn=$('#btnNudge'); btn.textContent=`③ Request Indexing (${n})`;
+  btn.disabled = n===0 || !state.saAvailable;
+}
+async function refreshNudgeAvailability(){
+  $('#nudgeNote').innerHTML='';
+  try{
+    const a=await api('/clients/'+state.client.id+'/nudge-availability');
+    state.saAvailable = a.available;
+    if(!a.available){
+      const msg = a.reason==='no_service_account' ? 'One-click Request Indexing is off — no service account uploaded. You can still Submit Sitemap.'
+        : a.reason==='not_owner' ? `Service account isn't an Owner of this property yet — add <code>${a.client_email||''}</code> as Owner in Search Console to enable one-click indexing. Submit Sitemap still works.`
+        : a.reason==='no_url' ? '' : 'One-click Request Indexing unavailable for this property.';
+      if(msg) $('#nudgeNote').innerHTML=`<div class="banner">${msg}</div>`;
+    }
+  }catch{ state.saAvailable=false; }
+  updateNudgeBtn();
+}
+async function doNudge(){
+  const urls=[...state.selected]; if(!urls.length) return;
+  const {job_id}=await api('/clients/'+state.client.id+'/request-indexing',{method:'POST',body:JSON.stringify({urls})});
+  pollJob(job_id, async()=>{ state.selected.clear(); await loadUrls(); });
+}
+async function doSubmitSitemap(){
+  try{ const r=await api('/clients/'+state.client.id+'/submit-sitemap',{method:'POST'}); alert(r.ok?'Sitemap submitted to Google.':'Submit failed.'); }
+  catch(e){ alert('Submit failed: '+e.message); }
+}
+
+// ---------- jobs ----------
+async function doCrawl(){
+  let url = state.client.sitemap_url;
+  if(!url){ url = prompt('Sitemap or website URL to crawl:'); if(!url) return; }
+  const {job_id}=await api('/clients/'+state.client.id+'/crawl',{method:'POST',body:JSON.stringify({url})});
+  pollJob(job_id, async()=>{ state.client=await api('/clients/'+state.client.id); await loadUrls(); });
+}
+async function doCheck(){
+  if(!state.client.property_url){ alert('Pick a GSC property in ⚙ Settings first.'); return openSettings(); }
+  try{ const {job_id}=await api('/clients/'+state.client.id+'/check',{method:'POST'}); pollJob(job_id, loadUrls); }
+  catch(e){ alert(e.message); }
+}
+async function doRefresh(){
+  const {job_id}=await api('/clients/'+state.client.id+'/refresh',{method:'POST'}); pollJob(job_id, loadUrls);
+}
+function pollJob(id, done){
+  const box=$('#jobBox'), bar=$('#jobBar'), msg=$('#jobMsg'); box.style.display='';
+  clearInterval(state.poll);
+  state.poll = setInterval(async()=>{
+    let j; try{ j=await api('/job/'+id); }catch{ return; }
+    const p=j.progress||{}; msg.textContent=p.message||j.status;
+    bar.style.width = p.total? Math.min(100,100*(p.done||0)/p.total)+'%' : (j.status==='running'?'40%':'100%');
+    if(j.status!=='running'){ clearInterval(state.poll); bar.style.width='100%';
+      setTimeout(()=>box.style.display='none', 1200);
+      if(j.status==='error') alert('Job failed: '+j.error);
+      if(done) await done();
+    }
+  }, 900);
+}
+
+// ---------- detail side panel ----------
+async function openDetail(url){
+  const d=await api('/clients/'+state.client.id+'/url?url='+encodeURIComponent(url));
+  const warns=(d.warnings||[]).map(w=>{
+    const fixes=(w.fix||(w.recommendation?[w.recommendation]:[]));
+    return `<div class="warn ${w.severity}"><b>${htm(w.problem||w.message||'')}</b>`
+      + (w.why?`<br><span class="muted">${htm(w.why)}</span>`:'')
+      + (fixes.length?`<ul class="rec-fix">`+fixes.map(f=>`<li>${htm(f)}</li>`).join('')+`</ul>`:'')
+      + `</div>`;
+  }).join('') || '<span class="muted">No issues found.</span>';
+  const vd=VERDICT[d.action]||null;
+  const list = (arr,empty)=> arr&&arr.length? '<ul style="margin:6px 0;padding-left:18px">'+arr.map(x=>`<li><a href="${x.url}" target="_blank">${(()=>{try{return new URL(x.url).pathname}catch{return x.url}})()}</a>${x.anchor?` <span class="muted">— ${x.anchor}</span>`:''}</li>`).join('')+'</ul>' : `<span class="muted">${empty}</span>`;
+  $('#side').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3 style="margin:0">Page detail</h3><button class="sm" onclick="$('#side').classList.remove('on')">✕</button></div>
+    <p><a href="${d.url}" target="_blank">${d.url}</a></p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+      ${vd?`<span class="pill ${vd.cls} vpill">${vd.label}</span>`:''}
+      <span class="pill ${STATUS_PILL[d.index_status]||'info'}">${labelStatus(d.index_status)}</span>
+      ${linkQ(d.link_quality)} ${fresh(d.indexed_detected_at)?'<span class="pill new">NEW</span>':''}
+    </div>
+    ${d.rec?`<div class="card" style="padding:10px 12px;margin-bottom:8px">${recCell(d)}</div>`:''}
+    <div class="muted" style="font-size:12px">Coverage: ${d.coverage_state||'—'} · Last crawled: ${(d.last_crawled||'—').slice(0,10)} · Impr: ${d.impressions||0} · Depth: ${d.click_depth??'—'}</div>
+    <h4>Issues & fixes</h4>${warns}
+    <h4>Inbound internal links (${(d.inbound||[]).length})</h4>${list(d.inbound,'None — this page is an orphan.')}
+    <h4>Outbound internal links (${(d.outbound||[]).length})</h4>${list(d.outbound,'None.')}`;
+  $('#side').classList.add('on');
+}
+
+// ---------- GSC + Service account (all inside Settings) ----------
+async function refreshGsc(){
+  state.gsc = await api('/auth-status');
+  $('#gscMini').innerHTML = state.gsc.connected
+    ? `GSC: <b>${state.gsc.email||'connected'}</b>` : (state.gsc.configured?'GSC: not connected':'GSC: not configured');
+  renderSettings();
+  if(state.client) refreshNudgeAvailability();
+}
+async function refreshSA(){ state.sa = await api('/service-account'); renderSettings(); }
+
+async function openSettings(){
+  await Promise.all([refreshGsc(), refreshSA()]);
+  const sel=$('#propSel'); sel.innerHTML='';
+  if(state.gsc?.connected){
+    try{ const {properties}=await api('/properties'); properties.forEach(p=>sel.add(new Option(p.site_url+'  ('+p.permission+')', p.site_url))); }catch{}
+  }
+  if(state.client?.property_url) sel.value=state.client.property_url;
+  renderSettings();
+  openOverlay('settingsModal');
+}
+function renderSettings(){
+  const g=$('#setGsc');
+  if(g) g.innerHTML = state.gsc?.connected
+    ? `<span class="pill green">Connected</span> ${state.gsc.email||''} &nbsp; <button class="sm" onclick="gscToggle()">Disconnect</button>`
+    : (state.gsc?.configured ? `<button class="sm primary" onclick="gscToggle()">Connect Google</button>`
+       : `<span class="muted">Google OAuth isn't configured in the Cortex .env.</span>`);
+  const s=$('#setSa'); if(s) s.innerHTML = state.sa?.configured ? `<div class="banner">Configured: <code>${state.sa.client_email||''}</code></div>` : '';
+  const rm=$('#saRemoveBtn'); if(rm) rm.style.display = state.sa?.configured?'':'none';
+  const pc=$('#propCur'); if(pc) pc.textContent = state.client?.property_url ? ('current: '+state.client.property_url) : 'none set';
+}
+async function gscToggle(){
+  if(state.gsc?.connected){ await api('/disconnect',{method:'POST'}); await refreshGsc(); return; }
+  const {auth_url}=await api('/oauth/start'); window.open(auth_url,'gsc','width=520,height=640');
+}
+async function saveProperty(){
+  const v=$('#propSel').value; if(!v) return alert('Connect Google and pick a property first.');
+  state.client=await api('/clients/'+state.client.id,{method:'PATCH',body:JSON.stringify({property_url:v})});
+  renderSettings(); refreshNudgeAvailability();
+}
+function loadSAFile(input){
+  const f = input.files && input.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => { $('#saJson').value = reader.result; uploadSA(); input.value=''; };
+  reader.onerror = () => { $('#saMsg').innerHTML = '<span style="color:var(--red)">Could not read the file.</span>'; };
+  reader.readAsText(f);
+}
+async function uploadSA(){
+  const msg = $('#saMsg'); if(msg) msg.textContent = '';
+  let key;
+  try{ key = JSON.parse(($('#saJson').value||'').trim()); }
+  catch{ if(msg) msg.innerHTML = '<span style="color:var(--red)">Not valid JSON — paste the whole key file or use Upload.</span>'; return; }
+  try{
+    const r = await api('/service-account',{method:'POST',body:JSON.stringify({key_json:key})});
+    $('#saJson').value = '';
+    await refreshSA();
+    if(msg) msg.innerHTML = `<span style="color:var(--grn)">✓ Saved: ${r.client_email||'service account'}</span>`;
+    if(state.client) refreshNudgeAvailability();
+  }catch(e){ if(msg) msg.innerHTML = '<span style="color:var(--red)">'+e.message+'</span>'; }
+}
+async function removeSA(){
+  await api('/service-account',{method:'DELETE'}); await refreshSA();
+  const msg=$('#saMsg'); if(msg) msg.textContent='Removed.';
+  if(state.client) refreshNudgeAvailability();
+}
+
+async function doDiagnose(){
+  try{ await api('/clients/'+state.client.id+'/diagnose',{method:'POST'}); await loadUrls(); }
+  catch(e){ alert(e.message); }
+}
+
+// ---------- overlays ----------
+function openOverlay(id){ $('#'+id).classList.add('on'); }
+function closeOverlay(id){ $('#'+id).classList.remove('on'); }
+
+// ---------- custom tooltip (reliable, not clipped) ----------
+const _tip = document.getElementById('tooltip');
+document.addEventListener('mouseover', e => {
+  const el = e.target.closest('[data-tip]'); if(!el) return;
+  _tip.textContent = el.getAttribute('data-tip');
+  const r = el.getBoundingClientRect();
+  _tip.style.display = 'block';
+  let left = r.left; if(left + 280 > window.innerWidth) left = window.innerWidth - 280;
+  _tip.style.left = Math.max(8, left) + 'px';
+  _tip.style.top = (r.bottom + 6) + 'px';
+});
+document.addEventListener('mouseout', e => { if(e.target.closest('[data-tip]')) _tip.style.display='none'; });
+
+// ---------- sortable headers ----------
+const _thead = document.querySelector('thead');
+if(_thead) _thead.addEventListener('click', e => { const th=e.target.closest('th[data-sort]'); if(th){ _tip.style.display='none'; setSort(th.getAttribute('data-sort')); } });
+
+boot();
+</script>
+</body>
+</html>
